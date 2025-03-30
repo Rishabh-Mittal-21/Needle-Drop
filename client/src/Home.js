@@ -1,17 +1,24 @@
-// Basic home page
+import React from "react";
 import { useNavigate } from "react-router-dom";
+import "./Home.css";
 
 export default function Home() {
   const navigate = useNavigate();
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Needle Drop</h1>
-      <p>Select a lobby:</p>
-      {[1, 2, 3].map((id) => (
-        <button key={id} onClick={() => navigate(`/lobby/${id}`)} style={{ margin: 10 }}>
-          Enter Lobby {id}
-        </button>
-      ))}
+    <div className="home-container">
+      <h1 className="home-title">Needle Drop</h1>
+      <p className="home-description">Select a lobby:</p>
+      <div className="button-container">
+        {[1, 2, 3].map((id) => (
+          <button
+            key={id}
+            onClick={() => navigate(`/lobby/${id}`)}
+            className="lobby-button"
+          >
+            Enter Lobby {id}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

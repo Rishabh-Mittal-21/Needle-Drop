@@ -5,16 +5,16 @@ import React, { useState, useRef, useEffect } from "react";
 const isYouTubeUrl = (url) =>
   /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/.test(url);
 
-// Positioned at top: 100px to provide space below the Lobby logo.
+// Positioned at top: 120px to provide space below the Lobby logo.
 function GlobalMusicPanel({ lobbyId }) {
   return (
     <div
       style={{
         position: "absolute",
-        top: 100,
+        top: 120,
         right: 10,
-        width: "600px",
-        height: "338px",
+        width: "800px",
+        height: "450px",
         backgroundColor: "#000",
         border: "2px solid #444",
         boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
@@ -47,12 +47,10 @@ function GlobalMusicPanel({ lobbyId }) {
 }
 
 // ROOM YOUTUBE PLAYER for room songs.
-// This component creates a YouTube player with controls disabled and an invisible overlay.
 function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   const playerRef = useRef(null);
 
   useEffect(() => {
-    // Get (or create) the start time for this song.
     const startKey = `roomSongStartTime-${roomKey}`;
     let storedTime = localStorage.getItem(startKey);
     if (!storedTime) {
@@ -63,7 +61,6 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
     }
     const elapsed = Math.floor(Date.now() / 1000 - storedTime);
 
-    // When the player is ready, seek to elapsed time and play.
     function onPlayerReady(event) {
       if (typeof event.target.seekTo === "function") {
         event.target.seekTo(elapsed, true);
@@ -71,7 +68,6 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       }
     }
 
-    // If the player is paused, force it to play; if the video ends, trigger onEnded.
     function onPlayerStateChange(event) {
       if (
         event.data === window.YT.PlayerState.PAUSED &&
@@ -85,7 +81,6 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       }
     }
 
-    // Create the player once the API is ready.
     function createPlayer() {
       if (!window.YT || !window.YT.Player) {
         setTimeout(createPlayer, 500);
@@ -133,7 +128,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   }, [videoUrl, roomKey, onEnded]);
 
   return (
-    <div style={{ position: "relative", width: "400px", height: "225px" }}>
+    <div style={{ position: "relative", width: "600px", height: "338px" }}>
       <div
         id={`room-player-${roomKey}`}
         style={{ width: "100%", height: "100%" }}
@@ -156,11 +151,8 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
 }
 
 // ROOM MUSIC PANEL: Handles "Now Playing", queues, and voting for room songs.
-// The room key is made unique by including the lobbyId and zone.
-// The vote state is persisted per user via myId.
 function RoomMusicPanel({ zone, lobbyId, myId }) {
   const roomKey = `roomQueue-${lobbyId}-${zone}`;
-  // Use a unique key for vote persistence; if myId is missing, fall back to "anonymous"
   const votedKey = `votedSongs-${roomKey}-${myId || "anonymous"}`;
   const [currentSong, setCurrentSong] = useState(null);
   const [mainQueue, setMainQueue] = useState([]);
@@ -228,7 +220,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
   };
 
   // Vote Yes: Increase vote count by 1.
-  // If score reaches +3, move the song from pending to main queue.
   const handleVoteYes = (songId) => {
     if (votedSongs[songId]) return;
     setVotedSongs((prev) => ({ ...prev, [songId]: true }));
@@ -250,7 +241,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
   };
 
   // Vote No: Decrease vote count by 1.
-  // If score reaches -3, remove the song from pending.
   const handleVoteNo = (songId) => {
     if (votedSongs[songId]) return;
     setVotedSongs((prev) => ({ ...prev, [songId]: true }));
@@ -282,7 +272,7 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   };
 
-  // If no song is playing and there is a song in the main queue, auto-load it.
+  // Auto-load the next song if none is playing.
   useEffect(() => {
     if (!currentSong && mainQueue.length > 0) {
       setCurrentSong(mainQueue[0]);
@@ -290,7 +280,7 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [mainQueue, currentSong]);
 
-  // For non-YouTube songs, load and play using an audio element.
+  // For non-YouTube songs.
   useEffect(() => {
     if (currentSong && !isYouTubeUrl(currentSong.url) && audioRef.current) {
       audioRef.current.src = currentSong.url;
@@ -314,32 +304,49 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     <div
       style={{
         position: "absolute",
-        top: 100, // moved down for spacing
+        top: 120,
         right: 10,
-        width: "420px",
+        width: "600px",
         backgroundColor: "#fff",
-        padding: "10px",
+        padding: "15px",
         borderRadius: "8px",
         maxHeight: "90vh",
         overflowY: "auto",
       }}
     >
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Now Playing</h3>
+      <h3
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: "16px",
+          margin: "10px 0",
+        }}
+      >
+        Now Playing
+      </h3>
       {currentSong ? (
-        <div style={{ marginBottom: "10px" }}>
-          <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
+        <div style={{ marginBottom: "15px" }}>
+          <p
+            style={{
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: "14px",
+            }}
+          >
             {currentSong.title}
           </p>
           {isYouTubeUrl(currentSong.url) ? (
-            // Force remount of the player when the song changes by using the song's id as key.
-            <RoomYTPlayer key={currentSong.id} videoUrl={currentSong.url} roomKey={roomKey} onEnded={handleSongEnd} />
+            <RoomYTPlayer
+              key={currentSong.id}
+              videoUrl={currentSong.url}
+              roomKey={roomKey}
+              onEnded={handleSongEnd}
+            />
           ) : (
             <audio
               ref={audioRef}
               onEnded={handleSongEnd}
               controls
               autoPlay
-              style={{ width: "300px", marginTop: "5px" }}
+              style={{ width: "100%", marginTop: "5px" }}
             />
           )}
           {!isYouTubeUrl(currentSong.url) &&
@@ -350,33 +357,86 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                 <img
                   src={`https://img.youtube.com/vi/${match[1]}/0.jpg`}
                   alt="thumbnail"
-                  style={{ width: "160px", height: "120px", marginTop: "10px" }}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    marginTop: "10px",
+                  }}
                 />
               ) : null;
             })()}
         </div>
       ) : (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>No song is playing.</p>
+        <p
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "14px",
+          }}
+        >
+          No song is playing.
+        </p>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Main Queue</h3>
+      <h3
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: "16px",
+          margin: "10px 0",
+        }}
+      >
+        Main Queue
+      </h3>
       {mainQueue.length === 0 ? (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>The main queue is empty.</p>
+        <p
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "14px",
+          }}
+        >
+          The main queue is empty.
+        </p>
       ) : (
-        <ul style={{ paddingLeft: "20px", fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
+        <ul
+          style={{
+            paddingLeft: "20px",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "14px",
+          }}
+        >
           {mainQueue.map((song) => (
             <li key={song.id}>{song.title}</li>
           ))}
         </ul>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Pending Queue</h3>
+      <h3
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: "16px",
+          margin: "10px 0",
+        }}
+      >
+        Pending Queue
+      </h3>
       {pendingQueue.length === 0 ? (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>No pending songs.</p>
+        <p
+          style={{
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "14px",
+          }}
+        >
+          No pending songs.
+        </p>
       ) : (
-        <ul style={{ paddingLeft: "20px", fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
+        <ul
+          style={{
+            paddingLeft: "20px",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: "14px",
+          }}
+        >
           {pendingQueue.map((song) => (
-            <li key={song.id} style={{ marginBottom: "5px" }}>
+            <li key={song.id} style={{ marginBottom: "8px" }}>
               <span>
                 {song.title} ({song.votes} votes)
               </span>
@@ -386,7 +446,7 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                 style={{
                   marginLeft: "5px",
                   fontFamily: "'Press Start 2P', monospace",
-                  fontSize: "10px",
+                  fontSize: "14px",
                 }}
               >
                 Yes
@@ -396,7 +456,7 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                 style={{
                   marginLeft: "5px",
                   fontFamily: "'Press Start 2P', monospace",
-                  fontSize: "10px",
+                  fontSize: "14px",
                 }}
               >
                 No
@@ -406,7 +466,15 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
         </ul>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Add a Song</h3>
+      <h3
+        style={{
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: "16px",
+          margin: "10px 0",
+        }}
+      >
+        Add a Song
+      </h3>
       <div>
         <input
           type="text"
@@ -415,8 +483,9 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
           onChange={(e) => setNewSongTitle(e.target.value)}
           style={{
             fontFamily: "'Press Start 2P', monospace",
-            fontSize: "10px",
-            marginRight: "5px",
+            fontSize: "14px",
+            marginRight: "10px",
+            padding: "5px",
           }}
         />
         <input
@@ -426,15 +495,17 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
           onChange={(e) => setNewSongUrl(e.target.value)}
           style={{
             fontFamily: "'Press Start 2P', monospace",
-            fontSize: "10px",
-            marginRight: "5px",
+            fontSize: "14px",
+            marginRight: "10px",
+            padding: "5px",
           }}
         />
         <button
           onClick={handleAddSong}
           style={{
             fontFamily: "'Press Start 2P', monospace",
-            fontSize: "10px",
+            fontSize: "14px",
+            padding: "5px 10px",
           }}
         >
           Add Song
@@ -445,7 +516,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
 }
 
 // Parent component: Choose panel based on zone.
-// For non-global zones, ensure you pass the current user's ID (myId) so that vote state is stored per user.
 export default function MusicPanel({ zone, lobbyId, myId }) {
   return zone === "global" ? (
     <GlobalMusicPanel lobbyId={lobbyId} />

@@ -6,11 +6,10 @@ import MusicPanel from "./components/MusicPanel";
 
 // Shift room positions to the right and restore the original global radio room size.
 const zones = {
-  room1: { name: "Room 1", x: 100, y: 50, w: 250, h: 250, color: "#fcd5ce" },
-  room2: { name: "Room 2", x: 400, y: 50, w: 250, h: 250, color: "#d0f4de" },
-  room3: { name: "Room 3", x: 700, y: 50, w: 250, h: 250, color: "#caffbf" },
-  // Global radio room restored to original size.
-  global: { name: "Global Radio", x: 100, y: 350, w: 850, h: 250, color: "#a0c4ff" },
+  room1: { name: "Room 1", x: 150, y: 50, w: 250, h: 250, color: "#fcd5ce" },
+  room2: { name: "Room 2", x: 450, y: 50, w: 250, h: 250, color: "#d0f4de" },
+  room3: { name: "Room 3", x: 750, y: 50, w: 250, h: 250, color: "#caffbf" },
+  global: { name: "Global Radio", x: 150, y: 350, w: 850, h: 250, color: "#a0c4ff" },
 };
 
 const BORDER_WIDTH = 2;
@@ -158,7 +157,7 @@ export default function Lobby() {
   return (
     <div
       style={{
-        width: "98vw",
+        width: "99vw",
         height: "98vh",
         position: "relative",
         overflow: "hidden",
@@ -166,6 +165,7 @@ export default function Lobby() {
         border: `${BORDER_WIDTH}px solid #444`,
         fontFamily: "'Press Start 2P', monospace",
       }}
+      // Back button
     >
       <button
         onClick={() => navigate("/")}
@@ -178,7 +178,7 @@ export default function Lobby() {
           backgroundColor: "#e0e0e0",
           border: "2px solid #888",
           borderRadius: "6px",
-          fontSize: "12px",
+          fontSize: "21px",
           cursor: "pointer",
           fontFamily: "'Press Start 2P', monospace",
         }}
@@ -222,7 +222,7 @@ export default function Lobby() {
             alignItems: "center",
             justifyContent: "center",
             fontWeight: "bold",
-            fontSize: "14px",
+            fontSize: "40px",
             color: "#222",
             textShadow: "1px 1px white",
             textAlign: "center",
