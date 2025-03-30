@@ -76,7 +76,7 @@ export default function Lobby() {
       setUsers((prev) => {
         const updated = { ...prev };
         if (!updated[id]) {
-          updated[id] = { x: 100, y: 100, name };
+          updated[id] = { x: 100, y: 200, name };
         } else {
           updated[id].name = name;
         }
@@ -111,7 +111,7 @@ export default function Lobby() {
       if (document.activeElement.tagName === "INPUT") return;
       setUsers((prev) => {
         if (!myId) return prev;
-        const me = prev[myId] || { x: 100, y: 100 };
+        const me = prev[myId] || { x: 500, y: 500 };
         let { x, y } = me;
         if (keys.has("ArrowUp")) y -= 5;
         if (keys.has("ArrowDown")) y += 5;
@@ -180,8 +180,8 @@ export default function Lobby() {
   return (
     <div
       style={{
-        width: "99vw",
-        height: "98vh",
+        width: "100vw",
+        height: "100vh",
         position: "relative",
         overflow: "hidden",
         backgroundColor: "#acd5ce",
@@ -194,8 +194,8 @@ export default function Lobby() {
         onClick={() => navigate("/")}
         style={{
           position: "absolute",
-          top: 10,
-          left: 10,
+          top: 50,
+          left: 25,
           zIndex: 1000,
           padding: "12px 16px",
           backgroundColor: "#e0e0e0",
@@ -211,8 +211,8 @@ export default function Lobby() {
       <div
         style={{
           position: "absolute",
-          top: 10,
-          right: 275,
+          top: 50,
+          right: 565,
           zIndex: 1000,
         }}
       >
@@ -228,14 +228,14 @@ export default function Lobby() {
       <div
         style={{
           position: "absolute",
-          top: 10,
-          right: "50px",
+          top: 50,
+          right: 25,
           zIndex: 1000,
           padding: "10px 20px",
           backgroundColor: "#fff",
           border: "3px solid #ff69b4",
           borderRadius: "20px",
-          fontSize: "32px",
+          fontSize: "100px",
           fontWeight: "bold",
           color: "#ff1493",
           textShadow: "2px 2px #fff",
@@ -308,12 +308,11 @@ export default function Lobby() {
       {["room1", "room2", "room3", "global"].includes(currentZone) && (
         <MusicPanel zone={currentZone} lobbyId={lobbyId} myId={myId} key={currentZone} />
       )}
-      {/* Render Chat component with a solid background under Global Radio */}
       <div
         style={{
           position: "absolute",
-          top: 620, // Global Radio y (350) + height (250) + margin (20)
-          left: 150, // Global Radio x
+          top: 50,
+          left: 1050, // Global Radio x
           width: "300px",
           backgroundColor: "#fff",
           border: "2px solid #ddd",
@@ -370,6 +369,31 @@ export default function Lobby() {
       >
         Reset
       </button>
+      {/* Instructions textbox under Global Radio */}
+      <div
+        style={{
+          position: "absolute",
+          top: 630, // adjust as needed (Global Radio starts at 350 + height 250 + margin)
+          left: 150,
+          width: "850px",
+          textAlign: "center",
+          padding: "20px",
+          backgroundColor: "#fff",
+          borderRadius: "10px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          zIndex: 1000,
+        }}
+      >
+        <p style={{ fontSize: "18px", margin: "10px 0" }}>
+          Use arrow keys to move around.<br />
+          Go to different rooms for different chats.<br />
+          Queue up music. <br />
+          If you get two yes' votes, it'll be added to the queue!<br />
+          Don't spam chat.<br />
+          <br />
+          Have fun.
+        </p>
+      </div>
     </div>
   );
 }

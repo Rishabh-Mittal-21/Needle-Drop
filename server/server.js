@@ -29,7 +29,7 @@ io.on("connection", (socket) => {
     if (!lobbies[lobbyId]) {
       lobbies[lobbyId] = {};
     }
-    lobbies[lobbyId][socket.id] = { x: 100, y: 100, name: "" };
+    lobbies[lobbyId][socket.id] = { x: 100, y: 200, name: "" };
     // If there’s no chat history for the lobby, initialize an empty array.
     if (!chats[lobbyId]) {
       chats[lobbyId] = [];
@@ -38,7 +38,7 @@ io.on("connection", (socket) => {
     socket.emit("init-chat", chats[lobbyId]);
     socket.to(lobbyId).emit("user-joined", {
       id: socket.id,
-      position: { x: 100, y: 100 },
+      position: { x: 100, y: 200 },
     });
     console.log(`${socket.id} joined lobby ${lobbyId}`);
   });

@@ -51,7 +51,6 @@ function queueReducer(state, action) {
         .map((song) => {
           if (song.id === songId) {
             const updatedVotes = song.votes + voteDelta;
-            // Adjust threshold as desired.
             if (updatedVotes >= 2) {
               newMainQueue = [...state.mainQueue, { ...song, votes: updatedVotes }];
               return null;
@@ -96,10 +95,10 @@ function GlobalMusicPanel({ lobbyId }) {
     <div
       style={{
         position: "absolute",
-        top: 227.5,
-        right: 10,
-        width: "650px",
-        height: "370px",
+        top: 430,
+        right: 25,
+        width: "1060px",
+        height: "670px",
         backgroundColor: "#fff",
         borderRadius: "10px",
         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
@@ -388,8 +387,8 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
 
   const containerStyle = {
     position: "absolute",
-    top: 120,
-    right: 10,
+    top: 240,
+    right: 25,
     width: "600px",
     backgroundColor: "#fff",
     padding: "20px",
