@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import socket from "./socket";
 import MusicPanel from "./components/MusicPanel";
 
-// Increase room sizes and adjust positions for layout.
+// Shift room positions to the right and restore the original global radio room size.
 const zones = {
-  room1: { name: "Room 1", x: 50, y: 50, w: 250, h: 250, color: "#fcd5ce" },
-  room2: { name: "Room 2", x: 350, y: 50, w: 250, h: 250, color: "#d0f4de" },
-  room3: { name: "Room 3", x: 650, y: 50, w: 250, h: 250, color: "#caffbf" },
-  global: { name: "Global Radio", x: 50, y: 350, w: 850, h: 200, color: "#a0c4ff" },
+  room1: { name: "Room 1", x: 100, y: 50, w: 250, h: 250, color: "#fcd5ce" },
+  room2: { name: "Room 2", x: 400, y: 50, w: 250, h: 250, color: "#d0f4de" },
+  room3: { name: "Room 3", x: 700, y: 50, w: 250, h: 250, color: "#caffbf" },
+  // Global radio room restored to original size.
+  global: { name: "Global Radio", x: 100, y: 350, w: 850, h: 250, color: "#a0c4ff" },
 };
 
-// Use full viewport minus the border thickness (2px) as boundaries.
 const BORDER_WIDTH = 2;
 const BOUNDS = {
   minX: BORDER_WIDTH,
@@ -158,23 +158,23 @@ export default function Lobby() {
           top: 10,
           left: 10,
           zIndex: 1000,
-          padding: "8px 12px",
+          padding: "12px 16px",
           backgroundColor: "#e0e0e0",
           border: "2px solid #888",
           borderRadius: "6px",
-          fontSize: "10px",
+          fontSize: "12px",
           cursor: "pointer",
           fontFamily: "'Press Start 2P', monospace",
         }}
       >
-        ← Go Back
+        ← Back
       </button>
-      {/* Enlarged bubbly Lobby logo in the top-right */}
+      {/* Enlarged bubbly Lobby logo in the top-right; shifted slightly left */}
       <div
         style={{
           position: "absolute",
           top: 10,
-          right: 10,
+          right: "50px",
           zIndex: 1000,
           padding: "10px 20px",
           backgroundColor: "#fff",
