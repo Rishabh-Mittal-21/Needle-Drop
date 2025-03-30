@@ -1,45 +1,43 @@
-// Imports
+// Lobby.js
 import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import socket from "./socket";
+import MusicPanel from "./components/MusicPanel";
 
-// Rooms
+// Increase room sizes and adjust positions for layout.
 const zones = {
-  room1: { name: "Room 1", x: 50, y: 50, w: 150, h: 150, color: "#fcd5ce" },
-  room2: { name: "Room 2", x: 250, y: 50, w: 150, h: 150, color: "#d0f4de" },
-  room3: { name: "Room 3", x: 450, y: 50, w: 150, h: 150, color: "#caffbf" },
-  global: { name: "Global Radio", x: 50, y: 250, w: 550, h: 200, color: "#a0c4ff" },
+  room1: { name: "Room 1", x: 50, y: 50, w: 250, h: 250, color: "#fcd5ce" },
+  room2: { name: "Room 2", x: 350, y: 50, w: 250, h: 250, color: "#d0f4de" },
+  room3: { name: "Room 3", x: 650, y: 50, w: 250, h: 250, color: "#caffbf" },
+  global: { name: "Global Radio", x: 50, y: 350, w: 850, h: 200, color: "#a0c4ff" },
 };
 
+// Use full viewport minus the border thickness (2px) as boundaries.
+const BORDER_WIDTH = 2;
 const BOUNDS = {
-  minX: 0,
-  minY: 0,
-  maxX: 800,
-  maxY: 600,
+  minX: BORDER_WIDTH,
+  minY: BORDER_WIDTH,
+  maxX: window.innerWidth - BORDER_WIDTH,
+  maxY: window.innerHeight - BORDER_WIDTH,
 };
 
-// Interactive lobby component
 export default function Lobby() {
   const { lobbyId } = useParams();
   const navigate = useNavigate();
   const [users, setUsers] = useState({});
   const [myId, setMyId] = useState(null);
-  const keys = useRef(new Set());
-  const intervalRef = useRef(null);
+  const [currentZone, setCurrentZone] = useState(null);
 
   useEffect(() => {
     if (socket.connected) {
       socket.disconnect();
     }
-
     socket.connect();
 
-    // Adds socket instance
     const handleConnect = () => {
       const id = socket.id;
       console.log("[CLIENT] Connected with socket ID:", id);
       setMyId(id);
-
       setTimeout(() => {
         socket.emit("join-lobby", { lobbyId });
         console.log("[CLIENT] Emitted join-lobby");
@@ -47,41 +45,23 @@ export default function Lobby() {
     };
 
     socket.on("connect", handleConnect);
-
-    // Track initial users
     socket.on("init-users", (usersFromServer) => {
       console.log("[CLIENT] Received init-users:", usersFromServer);
-      setUsers((prev) => ({
-        ...usersFromServer,
-        ...prev
-      }));
+      setUsers((prev) => ({ ...usersFromServer, ...prev }));
     });
-
-    // Track new users joining
     socket.on("user-joined", ({ id, position }) => {
       console.log("[CLIENT] Received user-joined:", id, position);
-      setUsers((prev) => ({
-        ...prev,
-        [id]: position
-      }));
+      setUsers((prev) => ({ ...prev, [id]: position }));
     });
-
-    // Track movement
     socket.on("user-moved", ({ id, x, y }) => {
-      setUsers((prev) => ({
-        ...prev,
-        [id]: { ...(prev[id] || {}), x, y }
-      }));
+      setUsers((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), x, y } }));
     });
-
-    // Track disconnect
     socket.on("user-left", ({ id }) => {
       console.log("[CLIENT] User left:", id);
       setUsers((prev) => ({
         ...prev,
-        [id]: { ...(prev[id] || { x: 100, y: 100 }), leaving: true }
+        [id]: { ...(prev[id] || { x: 100, y: 100 }), leaving: true },
       }));
-
       setTimeout(() => {
         setUsers((prev) => {
           const updated = { ...prev };
@@ -103,43 +83,37 @@ export default function Lobby() {
     };
   }, [lobbyId]);
 
-  // Smooth movement handler
+  // Movement & key handling within BOUNDS.
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!e.key.startsWith("Arrow")) return;
-
-      e.preventDefault();
-      keys.current.add(e.key);
-
-      if (!intervalRef.current) {
-        intervalRef.current = setInterval(() => {
-          setUsers((prev) => {
-            if (!myId) return prev;
-
-            const me = prev[myId] || { x: 100, y: 100 };
-            let { x, y } = me;
-
-            if (keys.current.has("ArrowUp")) y -= 5;
-            if (keys.current.has("ArrowDown")) y += 5;
-            if (keys.current.has("ArrowLeft")) x -= 5;
-            if (keys.current.has("ArrowRight")) x += 5;
-
-            // Boundaries
-            x = Math.max(BOUNDS.minX, Math.min(x, BOUNDS.maxX - 24));
-            y = Math.max(BOUNDS.minY, Math.min(y, BOUNDS.maxY - 24));
-
-            socket.emit("move", { x, y });
-            return { ...prev, [myId]: { x, y } };
-          });
-        }, 30); // Faster interval = smoother movement
-      }
+    const keys = new Set();
+    let interval = null;
+    const move = () => {
+      setUsers((prev) => {
+        if (!myId) return prev;
+        const me = prev[myId] || { x: 100, y: 100 };
+        let { x, y } = me;
+        if (keys.has("ArrowUp")) y -= 5;
+        if (keys.has("ArrowDown")) y += 5;
+        if (keys.has("ArrowLeft")) x -= 5;
+        if (keys.has("ArrowRight")) x += 5;
+        x = Math.max(BOUNDS.minX, Math.min(x, BOUNDS.maxX - 24));
+        y = Math.max(BOUNDS.minY, Math.min(y, BOUNDS.maxY - 24));
+        socket.emit("move", { x, y });
+        return { ...prev, [myId]: { x, y } };
+      });
     };
 
+    const handleKeyDown = (e) => {
+      if (!e.key.startsWith("Arrow")) return;
+      e.preventDefault();
+      keys.add(e.key);
+      if (!interval) interval = setInterval(move, 30);
+    };
     const handleKeyUp = (e) => {
-      keys.current.delete(e.key);
-      if (keys.current.size === 0 && intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      keys.delete(e.key);
+      if (keys.size === 0 && interval) {
+        clearInterval(interval);
+        interval = null;
       }
     };
 
@@ -148,9 +122,22 @@ export default function Lobby() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-      clearInterval(intervalRef.current);
+      clearInterval(interval);
     };
   }, [myId]);
+
+  // Zone detection based on user position.
+  useEffect(() => {
+    const me = users[myId];
+    if (!me) return;
+    const zone = Object.entries(zones).find(([_, z]) => {
+      return me.x >= z.x && me.x < z.x + z.w && me.y >= z.y && me.y < z.y + z.h;
+    });
+    const zoneId = zone?.[0] || null;
+    if (zoneId !== currentZone) {
+      setCurrentZone(zoneId);
+    }
+  }, [users, myId, currentZone]);
 
   return (
     <div
@@ -160,7 +147,8 @@ export default function Lobby() {
         position: "relative",
         overflow: "hidden",
         backgroundColor: "#acd5ce",
-        fontFamily: "'Press Start 2P', monospace"
+        border: `${BORDER_WIDTH}px solid #444`,
+        fontFamily: "'Press Start 2P', monospace",
       }}
     >
       <button
@@ -176,11 +164,31 @@ export default function Lobby() {
           borderRadius: "6px",
           fontSize: "10px",
           cursor: "pointer",
-          fontFamily: "'Press Start 2P', monospace"
+          fontFamily: "'Press Start 2P', monospace",
         }}
       >
         ← Go Back
       </button>
+      {/* Enlarged bubbly Lobby logo in the top-right */}
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          right: 10,
+          zIndex: 1000,
+          padding: "10px 20px",
+          backgroundColor: "#fff",
+          border: "3px solid #ff69b4",
+          borderRadius: "20px",
+          fontSize: "32px",
+          fontWeight: "bold",
+          color: "#ff1493",
+          textShadow: "2px 2px #fff",
+          fontFamily: "Comic Sans MS, cursive, sans-serif",
+        }}
+      >
+        Lobby #{lobbyId}
+      </div>
 
       {Object.entries(zones).map(([zoneId, zone]) => (
         <div
@@ -202,7 +210,7 @@ export default function Lobby() {
             color: "#222",
             textShadow: "1px 1px white",
             textAlign: "center",
-            padding: "4px"
+            padding: "4px",
           }}
         >
           {zone.name}
@@ -226,11 +234,15 @@ export default function Lobby() {
                 id === myId ? "#1e90ff" : leaving ? "#ff6b6b" : "#ffa500",
               border: "2px solid white",
               boxShadow: "0 0 6px rgba(0,0,0,0.2)",
-              transition: "background-color 0.3s ease, opacity 0.3s ease"
+              transition: "background-color 0.3s ease, opacity 0.3s ease",
             }}
           />
         );
       })}
+
+      {["room1", "room2", "room3", "global"].includes(currentZone) && (
+        <MusicPanel zone={currentZone} lobbyId={lobbyId} key={currentZone} />
+      )}
     </div>
   );
 }
