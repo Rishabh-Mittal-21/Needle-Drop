@@ -11,6 +11,7 @@ const zones = {
   global: { name: "Global Radio", x: 50, y: 250, w: 550, h: 200, color: "#a0c4ff" },
 };
 
+// Interactive lobby component
 export default function Lobby() {
   const { lobbyId } = useParams();
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ export default function Lobby() {
 
     socket.on("connect", handleConnect);
 
+    // Track initial users
     socket.on("init-users", (usersFromServer) => {
       console.log("[CLIENT] Received init-users:", usersFromServer);
       setUsers((prev) => ({
@@ -46,6 +48,7 @@ export default function Lobby() {
       }));
     });
 
+    // Track new users joining
     socket.on("user-joined", ({ id, position }) => {
       console.log("[CLIENT] Received user-joined:", id, position);
       setUsers((prev) => ({
@@ -54,6 +57,7 @@ export default function Lobby() {
       }));
     });
 
+    // Track movement
     socket.on("user-moved", ({ id, x, y }) => {
       setUsers((prev) => ({
         ...prev,
@@ -61,6 +65,7 @@ export default function Lobby() {
       }));
     });
 
+    // Track disconnect
     socket.on("user-left", ({ id }) => {
       console.log("[CLIENT] User left:", id);
       setUsers((prev) => ({
@@ -89,6 +94,7 @@ export default function Lobby() {
     };
   }, [lobbyId]);
 
+  // Handle key events for movement
   useEffect(() => {
     const handleKey = (e) => {
       if (!myId) return;
@@ -99,6 +105,7 @@ export default function Lobby() {
         e.key === "ArrowLeft" ||
         e.key === "ArrowRight"
       ) {
+        // Prevent default scrolling behavior
         e.preventDefault();
       }
 
@@ -106,10 +113,10 @@ export default function Lobby() {
         const me = prev[myId] || { x: 100, y: 100 };
         let { x, y } = me;
 
-        if (e.key === "ArrowUp") y -= 3;
-        if (e.key === "ArrowDown") y += 3;
-        if (e.key === "ArrowLeft") x -= 3;
-        if (e.key === "ArrowRight") x += 3;
+        if (e.key === "ArrowUp") y -= 10;
+        if (e.key === "ArrowDown") y += 10;
+        if (e.key === "ArrowLeft") x -= 10;
+        if (e.key === "ArrowRight") x += 10;
 
         socket.emit("move", { x, y });
         return { ...prev, [myId]: { x, y } };
@@ -181,7 +188,6 @@ export default function Lobby() {
       {Object.entries(users).map(([id, user]) => {
         if (!user || user.x === undefined || user.y === undefined) return null;
         const { x, y, leaving } = user;
-
         return (
           <div
             key={id}
