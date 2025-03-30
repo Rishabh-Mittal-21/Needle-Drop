@@ -1,45 +1,59 @@
-/* @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"); */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 .home-container {
-  background: radial-gradient(circle, #2a2a2a, #000);
+  /* Remove or comment out the background image settings here */
+  /* background: 
+    linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)),
+    url('/vinyl-anime.gif'); */
+  background-size: cover;
+  background-position: center;
   min-height: 100vh;
-  padding: 40px;
-  color: #f0f0f0;
-  text-align: center;
-  font-family: "Press Start 2P", cursive;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: 'Roboto', sans-serif;
+  color: #fff;
 }
 
 .home-title {
-  font-size: 3rem;
-  color: #ff77ff;
-  margin-bottom: 20px;
-  text-shadow: 0 0 10px #ff77ff;
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+  color: #fff;
 }
 
 .home-description {
   font-size: 1.2rem;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
+  color: #ddd;
 }
 
 .button-container {
   display: flex;
-  justify-content: center;
-  gap: 20px;
+  gap: 15px;
 }
 
 .lobby-button {
-  background: linear-gradient(45deg, #ff77ff, #ff3399);
-  border: none;
-  border-radius: 8px;
-  padding: 12px 24px;
-  font-size: 0.8rem;
-  color: #222;
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  color: #333;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  text-shadow: 0 0 5px #fff;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .lobby-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 20px #ff77ff;
+  background: #f0f0f0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }

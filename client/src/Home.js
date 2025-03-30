@@ -4,8 +4,14 @@ import "./Home.css";
 
 export default function Home() {
   const navigate = useNavigate();
+
+  // Inline style to apply the background image with a dark gradient overlay
+  const backgroundStyle = {
+    backgroundImage: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(${process.env.PUBLIC_URL + '/vinyl-anime.gif'})`
+  };
+
   return (
-    <div className="home-container">
+    <div className="home-container" style={backgroundStyle}>
       <h1 className="home-title">Needle Drop</h1>
       <p className="home-description">Select a lobby:</p>
       <div className="button-container">

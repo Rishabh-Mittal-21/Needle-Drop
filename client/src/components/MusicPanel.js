@@ -1,11 +1,12 @@
 // components/MusicPanel.js
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useReducer } from "react";
 import YouTubeSearch from "./YouTubeSearch";
 
 // Helper: Determine if a URL is a YouTube link.
 const isYouTubeUrl = (url) =>
   /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/.test(url);
 
+// Helper: Format time (in seconds) to mm:ss.
 const formatTime = (time) => {
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60)
@@ -14,16 +15,75 @@ const formatTime = (time) => {
   return `${minutes}:${seconds}`;
 };
 
+// --- Reducer for room queue state ---
+const initialQueueState = {
+  currentSong: null,
+  mainQueue: [],
+  pendingQueue: [],
+};
+
+function queueReducer(state, action) {
+  switch (action.type) {
+    case "ADD_SONG":
+      return {
+        ...state,
+        pendingQueue: [...state.pendingQueue, action.payload],
+      };
+    case "VOTE_SONG": {
+      const { songId, voteDelta } = action;
+      let newMainQueue = state.mainQueue;
+      const newPendingQueue = state.pendingQueue
+        .map((song) => {
+          if (song.id === songId) {
+            const updatedVotes = song.votes + voteDelta;
+            if (updatedVotes >= 3) {
+              // Move to mainQueue if threshold reached
+              newMainQueue = [...state.mainQueue, { ...song, votes: updatedVotes }];
+              return null;
+            } else if (updatedVotes <= -3) {
+              // Remove song entirely if negative threshold reached
+              return null;
+            } else {
+              return { ...song, votes: updatedVotes };
+            }
+          }
+          return song;
+        })
+        .filter((song) => song !== null);
+      return {
+        ...state,
+        pendingQueue: newPendingQueue,
+        mainQueue: newMainQueue,
+      };
+    }
+    case "NEXT_SONG": {
+      if (state.mainQueue.length > 0) {
+        return {
+          ...state,
+          currentSong: state.mainQueue[0],
+          mainQueue: state.mainQueue.slice(1),
+        };
+      } else {
+        return { ...state, currentSong: null };
+      }
+    }
+    case "SET_STATE":
+      return action.payload;
+    default:
+      return state;
+  }
+}
+
 /* ----------------- Global Music Panel ----------------- */
 function GlobalMusicPanel({ lobbyId }) {
   return (
     <div
       style={{
         position: "absolute",
-        top: 120,
+        top: 227.5,
         right: 10,
-        width: "800px",
-        height: "450px",
+        width: "650px",
+        height: "370px",
         backgroundColor: "#fff",
         borderRadius: "10px",
         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
@@ -33,23 +93,11 @@ function GlobalMusicPanel({ lobbyId }) {
       <iframe
         width="100%"
         height="100%"
-        src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?si=umAVeQG3rj0yufQ3&autoplay=1"
+        src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1"
         title="Main Radio"
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
-      />
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: 1000,
-          backgroundColor: "transparent",
-        }}
-        onClick={(e) => e.preventDefault()}
       />
     </div>
   );
@@ -62,6 +110,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   const [duration, setDuration] = useState(0);
 
   useEffect(() => {
+    // If there's no stored start time, set it
     const startKey = `roomSongStartTime-${roomKey}`;
     let storedTime = localStorage.getItem(startKey);
     if (!storedTime) {
@@ -70,18 +119,20 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
     } else {
       storedTime = parseFloat(storedTime);
     }
+
     const elapsed = Math.floor(Date.now() / 1000 - storedTime);
 
     function onPlayerReady(event) {
       if (typeof event.target.seekTo === "function") {
         event.target.seekTo(elapsed, true);
-        event.target.playVideo();
+        event.target.playVideo(); // Autoplay
       }
       const dur = event.target.getDuration();
       setDuration(dur);
     }
 
     function onPlayerStateChange(event) {
+      // Force it to keep playing
       if (
         event.data === window.YT.PlayerState.PAUSED &&
         playerRef.current &&
@@ -89,6 +140,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       ) {
         playerRef.current.playVideo();
       }
+      // If ended, call onEnded
       if (event.data === window.YT.PlayerState.ENDED) {
         onEnded();
       }
@@ -100,11 +152,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
         return;
       }
       playerRef.current = new window.YT.Player(`room-player-${roomKey}`, {
-        videoId: (() => {
-          const regExp = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/;
-          const match = videoUrl.match(regExp);
-          return match ? match[1] : "";
-        })(),
+        videoId: extractVideoId(videoUrl),
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -115,6 +163,13 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
           onStateChange: onPlayerStateChange,
         },
       });
+    }
+
+    // Helper to extract the video ID from the URL
+    function extractVideoId(url) {
+      const regExp = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/;
+      const match = url.match(regExp);
+      return match ? match[1] : "";
     }
 
     if (!window.YT) {
@@ -165,18 +220,6 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
           {formatTime(currentTime)} / {formatTime(duration)}
         </div>
       </div>
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: 1000,
-          backgroundColor: "transparent",
-        }}
-        onClick={(e) => e.preventDefault()}
-      />
     </div>
   );
 }
@@ -185,57 +228,66 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
 function RoomMusicPanel({ zone, lobbyId, myId }) {
   const roomKey = `roomQueue-${lobbyId}-${zone}`;
   const votedKey = `votedSongs-${roomKey}-${myId || "anonymous"}`;
-  const [currentSong, setCurrentSong] = useState(null);
-  const [mainQueue, setMainQueue] = useState([]);
-  const [pendingQueue, setPendingQueue] = useState([]);
+
+  // Lazy initialization from localStorage
+  const [state, dispatch] = useReducer(queueReducer, initialQueueState, () => {
+    const stored = localStorage.getItem(roomKey);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error("Failed to parse stored state", e);
+      }
+    }
+    return initialQueueState;
+  });
+  const { currentSong, mainQueue, pendingQueue } = state;
+
   const [votedSongs, setVotedSongs] = useState({});
   const [newSongUrl, setNewSongUrl] = useState("");
   const [newSongTitle, setNewSongTitle] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
-  const [panelHeight, setPanelHeight] = useState("90vh");
   const [audioProgress, setAudioProgress] = useState({ current: 0, duration: 0 });
   const audioRef = useRef(null);
 
+  // If there's no currentSong but the mainQueue has items, automatically start the next song.
   useEffect(() => {
-    if (currentSong || mainQueue.length > 0 || pendingQueue.length > 0) {
-      setPanelHeight("80vh");
-    } else {
-      setPanelHeight("90vh");
+    if (!currentSong && mainQueue.length > 0) {
+      dispatch({ type: "NEXT_SONG" });
     }
-  }, [currentSong, mainQueue, pendingQueue]);
+  }, [currentSong, mainQueue, dispatch]);
 
+  // Save state to localStorage on change
   useEffect(() => {
-    const stored = localStorage.getItem(roomKey);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setCurrentSong(parsed.currentSong);
-      setMainQueue(parsed.mainQueue);
-      setPendingQueue(parsed.pendingQueue);
-    }
-  }, [roomKey]);
-
-  useEffect(() => {
-    const state = { currentSong, mainQueue, pendingQueue };
     localStorage.setItem(roomKey, JSON.stringify(state));
-  }, [currentSong, mainQueue, pendingQueue, roomKey]);
+  }, [state, roomKey]);
 
+  // Listen for storage events (only update if state changed)
   useEffect(() => {
     const handler = (e) => {
       if (e.key === roomKey && e.newValue) {
-        const parsed = JSON.parse(e.newValue);
-        setCurrentSong(parsed.currentSong);
-        setMainQueue(parsed.mainQueue);
-        setPendingQueue(parsed.pendingQueue);
+        try {
+          const newState = JSON.parse(e.newValue);
+          if (JSON.stringify(newState) !== JSON.stringify(state)) {
+            dispatch({ type: "SET_STATE", payload: newState });
+          }
+        } catch (err) {
+          console.error("Storage event parse error", err);
+        }
       }
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
-  }, [roomKey]);
+  }, [roomKey, state, dispatch]);
 
+  // Manage voted songs state (stored separately)
   useEffect(() => {
     const storedVotes = localStorage.getItem(votedKey);
     if (storedVotes) {
-      setVotedSongs(JSON.parse(storedVotes));
+      try {
+        setVotedSongs(JSON.parse(storedVotes));
+      } catch (e) {
+        console.error("Failed to parse votes", e);
+      }
     }
   }, [votedKey]);
 
@@ -243,85 +295,18 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     localStorage.setItem(votedKey, JSON.stringify(votedSongs));
   }, [votedSongs, votedKey]);
 
-  const handleAddSong = () => {
-    if (!newSongUrl || !newSongTitle) return;
-    const newSong = {
-      id: Date.now(),
-      title: newSongTitle,
-      url: newSongUrl,
-      votes: 0,
-    };
-    setPendingQueue((prev) => [...prev, newSong]);
-    setNewSongUrl("");
-    setNewSongTitle("");
-  };
-
-  const handleVoteYes = (songId) => {
-    if (votedSongs[songId]) return;
-    setVotedSongs((prev) => ({ ...prev, [songId]: true }));
-    setPendingQueue((prev) =>
-      prev
-        .map((song) => {
-          if (song.id === songId) {
-            const updatedVotes = song.votes + 1;
-            if (updatedVotes >= 3) {
-              setMainQueue((mq) => [...mq, { ...song, votes: updatedVotes }]);
-              return null;
-            }
-            return { ...song, votes: updatedVotes };
-          }
-          return song;
-        })
-        .filter((song) => song !== null)
-    );
-  };
-
-  const handleVoteNo = (songId) => {
-    if (votedSongs[songId]) return;
-    setVotedSongs((prev) => ({ ...prev, [songId]: true }));
-    setPendingQueue((prev) =>
-      prev
-        .map((song) => {
-          if (song.id === songId) {
-            const updatedVotes = song.votes - 1;
-            if (updatedVotes <= -3) {
-              return null;
-            }
-            return { ...song, votes: updatedVotes };
-          }
-          return song;
-        })
-        .filter((song) => song !== null)
-    );
-  };
-
-  const handleSongEnd = () => {
-    if (mainQueue.length > 0) {
-      setCurrentSong(mainQueue[0]);
-      setMainQueue((mq) => mq.slice(1));
-      localStorage.removeItem(`roomSongStartTime-${roomKey}`);
-    } else {
-      setCurrentSong(null);
-      localStorage.removeItem(`roomSongStartTime-${roomKey}`);
-    }
-  };
-
-  useEffect(() => {
-    if (!currentSong && mainQueue.length > 0) {
-      setCurrentSong(mainQueue[0]);
-      setMainQueue((mq) => mq.slice(1));
-    }
-  }, [mainQueue, currentSong]);
-
+  // Handle audio (non-YouTube) autoplay
   useEffect(() => {
     if (currentSong && !isYouTubeUrl(currentSong.url) && audioRef.current) {
       audioRef.current.src = currentSong.url;
+      // Attempt to play automatically
       audioRef.current.play().catch((err) =>
-        console.error("Audio play error", err)
+        console.error("Audio autoplay blocked by browser", err)
       );
     }
   }, [currentSong]);
 
+  // For YouTube songs, store a start time once
   useEffect(() => {
     if (currentSong && isYouTubeUrl(currentSong.url)) {
       const startKey = `roomSongStartTime-${roomKey}`;
@@ -331,46 +316,67 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [currentSong, roomKey]);
 
+  const handleSongEnd = () => {
+    dispatch({ type: "NEXT_SONG" });
+    localStorage.removeItem(`roomSongStartTime-${roomKey}`);
+  };
+
+  const handleAddSong = () => {
+    if (!newSongUrl || !newSongTitle) return;
+    const newSong = {
+      id: Date.now(),
+      title: newSongTitle,
+      url: newSongUrl,
+      votes: 0,
+    };
+    dispatch({ type: "ADD_SONG", payload: newSong });
+    setNewSongUrl("");
+    setNewSongTitle("");
+  };
+
+  const handleVoteYes = (songId) => {
+    if (votedSongs[songId]) return;
+    setVotedSongs((prev) => ({ ...prev, [songId]: true }));
+    dispatch({ type: "VOTE_SONG", songId, voteDelta: 1 });
+  };
+
+  const handleVoteNo = (songId) => {
+    if (votedSongs[songId]) return;
+    setVotedSongs((prev) => ({ ...prev, [songId]: true }));
+    dispatch({ type: "VOTE_SONG", songId, voteDelta: -1 });
+  };
+
   const handleVideoSelect = (video) => {
     const url = `https://www.youtube.com/watch?v=${video.id.videoId}`;
     setNewSongUrl(url);
     setNewSongTitle(video.snippet.title);
-    setShowSearch(false);
+  };
+
+  // Basic styling for the container
+  const containerStyle = {
+    position: "absolute",
+    top: 120,
+    right: 10,
+    width: "600px",
+    backgroundColor: "#fff",
+    padding: "20px",
+    borderRadius: "15px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+    maxHeight: "80vh", // fixed at 80vh
+    overflowY: "auto",
+    fontFamily: "'Poppins', sans-serif",
+    color: "#333",
   };
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: 120,
-        right: 10,
-        width: "600px",
-        backgroundColor: "#fff",
-        padding: "20px",
-        borderRadius: "15px",
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-        maxHeight: panelHeight,
-        overflowY: "auto",
-        fontFamily: "'Poppins', sans-serif",
-        color: "#333",
-      }}
-    >
+    <div style={containerStyle}>
       {/* Now Playing */}
-      <h3
-        style={{
-          fontSize: "20px",
-          fontWeight: 600,
-          marginBottom: "10px",
-          color: "#FF6BBA",
-        }}
-      >
+      <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "10px", color: "#FF6BBA" }}>
         Now Playing
       </h3>
       {currentSong ? (
         <div style={{ marginBottom: "20px" }}>
-          <p style={{ fontSize: "16px", fontWeight: 500 }}>
-            {currentSong.title}
-          </p>
+          <p style={{ fontSize: "16px", fontWeight: 500 }}>{currentSong.title}</p>
           {isYouTubeUrl(currentSong.url) ? (
             <RoomYTPlayer
               key={currentSong.id}
@@ -386,9 +392,9 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                 controls
                 autoPlay
                 onTimeUpdate={(e) => {
-                  const current = e.target.currentTime;
+                  const curr = e.target.currentTime;
                   const dur = e.target.duration;
-                  setAudioProgress({ current, duration: dur });
+                  setAudioProgress({ current: curr, duration: dur });
                 }}
                 style={{ width: "100%", marginTop: "10px" }}
               />
@@ -424,22 +430,15 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
       )}
 
       {/* Main Queue */}
-      <h3
-        style={{
-          fontSize: "20px",
-          fontWeight: 600,
-          marginBottom: "10px",
-          color: "#FF6BBA",
-        }}
-      >
+      <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "10px", color: "#FF6BBA" }}>
         Main Queue
       </h3>
       {mainQueue.length === 0 ? (
         <p style={{ fontSize: "14px" }}>The main queue is empty.</p>
       ) : (
-        <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
+        <ul style={{ paddingLeft: "20px", marginBottom: "20px", fontSize: "14px" }}>
           {mainQueue.map((song) => (
-            <li key={song.id} style={{ marginBottom: "5px", fontSize: "14px" }}>
+            <li key={song.id} style={{ marginBottom: "5px" }}>
               {song.title}
             </li>
           ))}
@@ -447,22 +446,15 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
       )}
 
       {/* Pending Queue */}
-      <h3
-        style={{
-          fontSize: "20px",
-          fontWeight: 600,
-          marginBottom: "10px",
-          color: "#FF6BBA",
-        }}
-      >
+      <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "10px", color: "#FF6BBA" }}>
         Pending Queue
       </h3>
       {pendingQueue.length === 0 ? (
         <p style={{ fontSize: "14px" }}>No pending songs.</p>
       ) : (
-        <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
+        <ul style={{ paddingLeft: "20px", marginBottom: "20px", fontSize: "14px" }}>
           {pendingQueue.map((song) => (
-            <li key={song.id} style={{ marginBottom: "8px", fontSize: "14px" }}>
+            <li key={song.id} style={{ marginBottom: "8px" }}>
               <span>
                 {song.title} (<strong>{song.votes}</strong> votes)
               </span>
@@ -480,12 +472,8 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                   cursor: "pointer",
                   fontWeight: 500,
                 }}
-                onMouseEnter={(e) =>
-                  (e.target.style.backgroundColor = "#ff8cc7")
-                }
-                onMouseLeave={(e) =>
-                  (e.target.style.backgroundColor = "#FFA4D3")
-                }
+                onMouseEnter={(e) => (e.target.style.backgroundColor = "#ff8cc7")}
+                onMouseLeave={(e) => (e.target.style.backgroundColor = "#FFA4D3")}
               >
                 Yes
               </button>
@@ -502,12 +490,8 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
                   cursor: "pointer",
                   fontWeight: 500,
                 }}
-                onMouseEnter={(e) =>
-                  (e.target.style.backgroundColor = "#ffb3cf")
-                }
-                onMouseLeave={(e) =>
-                  (e.target.style.backgroundColor = "#FFCCDD")
-                }
+                onMouseEnter={(e) => (e.target.style.backgroundColor = "#ffb3cf")}
+                onMouseLeave={(e) => (e.target.style.backgroundColor = "#FFCCDD")}
               >
                 No
               </button>
@@ -517,17 +501,9 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
       )}
 
       {/* Add a Song Section */}
-      <h3
-        style={{
-          fontSize: "20px",
-          fontWeight: 600,
-          marginBottom: "10px",
-          color: "#FF6BBA",
-        }}
-      >
+      <h3 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "10px", color: "#FF6BBA" }}>
         Add a Song
       </h3>
-      {/* YouTube Search directly under Add a Song */}
       <div
         style={{
           backgroundColor: "#FDF6F0",
@@ -540,7 +516,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
       >
         <YouTubeSearch onVideoSelect={handleVideoSelect} />
       </div>
-      {/* Then below, the manual input fields */}
       <div style={{ marginBottom: "10px", display: "flex", flexWrap: "wrap", gap: "10px" }}>
         <input
           type="text"
@@ -570,6 +545,8 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
             flex: "1 1 40%",
           }}
         />
+      </div>
+      <div style={{ marginBottom: "20px" }}>
         <button
           onClick={handleAddSong}
           style={{
@@ -582,7 +559,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
             fontWeight: 500,
             cursor: "pointer",
             fontFamily: "'Poppins', sans-serif",
-            flex: "1 1 15%",
           }}
           onMouseEnter={(e) => (e.target.style.backgroundColor = "#218838")}
           onMouseLeave={(e) => (e.target.style.backgroundColor = "#28a745")}
