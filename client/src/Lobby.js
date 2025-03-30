@@ -27,16 +27,12 @@ export default function Lobby() {
   const [users, setUsers] = useState({});
   const [myId, setMyId] = useState(null);
   const [currentZone, setCurrentZone] = useState(null);
-
-  // Global name for the user (displayed above circle and used in Chat)
   const [userName, setUserName] = useState("");
-
-  // For clearing chat messages – incrementing this value will signal Chat to clear.
+  // chatClearSignal is still here if needed for other purposes.
   const [chatClearSignal, setChatClearSignal] = useState(0);
 
-  // The initial connect effect depends only on the lobbyId
+  // Connect and join lobby.
   useEffect(() => {
-    // Connect once (if not already connected)
     if (!socket.connected) {
       socket.connect();
     }
@@ -45,8 +41,6 @@ export default function Lobby() {
       const id = socket.id;
       console.log("[CLIENT] Connected with socket ID:", id);
       setMyId(id);
-
-      // Join the lobby (no name needed here; name updates come separately)
       socket.emit("join-lobby", { lobbyId });
     };
 
@@ -78,7 +72,6 @@ export default function Lobby() {
       });
     });
 
-    // NEW: listen for name-updated
     socket.on("name-updated", ({ id, name }) => {
       setUsers((prev) => {
         const updated = { ...prev };
@@ -92,7 +85,6 @@ export default function Lobby() {
     });
 
     return () => {
-      console.log("[CLIENT] Cleaning up socket listeners and disconnecting");
       socket.off("connect", handleConnect);
       socket.off("init-users");
       socket.off("user-joined");
@@ -103,15 +95,14 @@ export default function Lobby() {
     };
   }, [lobbyId]);
 
-  // NEW: when userName changes (and we have myId), tell the server
+  // When userName changes, update on server.
   useEffect(() => {
     if (myId && userName.trim()) {
-      // e.g. "update-name" -> server
       socket.emit("update-name", { name: userName.trim() });
     }
   }, [myId, userName]);
 
-  // Movement handling (skip if an input is focused)
+  // Movement handling.
   useEffect(() => {
     const keys = new Set();
     let interval = null;
@@ -159,7 +150,7 @@ export default function Lobby() {
     };
   }, [myId]);
 
-  // Zone detection
+  // Zone detection.
   useEffect(() => {
     const me = users[myId];
     if (!me) return;
@@ -172,19 +163,17 @@ export default function Lobby() {
     }
   }, [users, myId, currentZone]);
 
-  // Unique chat room ID
+  // Determine chat room id – here we use lobbyId + currentZone.
   const chatRoomId = currentZone ? `${lobbyId}-${currentZone}` : lobbyId;
 
-  // Clear everything from localStorage
+  // When chatRoomId changes, join the chat room.
+  useEffect(() => {
+    if (chatRoomId) {
+      socket.emit("join-chat", { roomId: chatRoomId });
+    }
+  }, [chatRoomId]);
+
   const resetLobby = () => {
-    localStorage.removeItem("globalRadioStartTime");
-    const zoneNames = ["room1", "room2", "room3", "global"];
-    zoneNames.forEach((zone) => {
-      const key = zone === "global" ? `roomQueue-${lobbyId}` : `roomQueue-${lobbyId}-${zone}`;
-      localStorage.removeItem(key);
-      const voteKey = `votedSongs-${key}-${myId || "anonymous"}`;
-      localStorage.removeItem(voteKey);
-    });
     window.location.reload();
   };
 
@@ -214,7 +203,6 @@ export default function Lobby() {
           borderRadius: "6px",
           fontSize: "21px",
           cursor: "pointer",
-          fontFamily: "'Press Start 2P', monospace",
         }}
       >
         ← Back
@@ -224,7 +212,7 @@ export default function Lobby() {
         style={{
           position: "absolute",
           top: 10,
-          right: 220,
+          right: 275,
           zIndex: 1000,
         }}
       >
@@ -287,10 +275,8 @@ export default function Lobby() {
         if (!user || user.x === undefined || user.y === undefined) return null;
         const { x, y } = user;
         const displayName = user.name || (id === myId ? userName || "You" : id);
-
         return (
           <div key={id} style={{ position: "absolute", left: x, top: y }}>
-            {/* Name label above the circle */}
             <div
               style={{
                 position: "absolute",
@@ -318,26 +304,29 @@ export default function Lobby() {
           </div>
         );
       })}
-      {/* Music Panel if in a valid zone */}
+      {/* Render MusicPanel if in a valid zone */}
       {["room1", "room2", "room3", "global"].includes(currentZone) && (
         <MusicPanel zone={currentZone} lobbyId={lobbyId} myId={myId} key={currentZone} />
       )}
-      {/* Render the Chat component using the private chatRoomId */}
+      {/* Render Chat component with a solid background under Global Radio */}
       <div
         style={{
           position: "absolute",
-          bottom: 10,
-          right: 10,
+          top: 620, // Global Radio y (350) + height (250) + margin (20)
+          left: 150, // Global Radio x
           width: "300px",
+          backgroundColor: "#fff",
+          border: "2px solid #ddd",
+          borderRadius: "8px",
+          padding: "10px",
           zIndex: 1000,
         }}
       >
-        {/* Pass userName to Chat so your messages have your name */}
-        <Chat roomId={chatRoomId} clearSignal={chatClearSignal} defaultName={userName} />
+        <Chat roomId={chatRoomId} defaultName={userName} />
       </div>
-      {/* Clear Chat button above the Reset button */}
+      {/* Clear Chat button */}
       <button
-        onClick={() => setChatClearSignal((prev) => prev + 1)}
+        onClick={() => socket.emit("clear-chat", { roomId: chatRoomId })}
         style={{
           position: "absolute",
           bottom: "40px",
@@ -358,6 +347,7 @@ export default function Lobby() {
       >
         Clear Chat
       </button>
+      {/* Reset button */}
       <button
         onClick={resetLobby}
         style={{

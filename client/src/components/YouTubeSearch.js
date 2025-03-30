@@ -5,7 +5,7 @@ export default function YouTubeSearch({ onVideoSelect }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
 
-  const API_KEY = "";
+  const API_KEY = "AIzaSyDnwsy88WbhxW4yb5jdY0nlVEVBPtPkvZw";
 
   const handleSearch = async () => {
     if (!query) return;
