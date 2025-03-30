@@ -1,6 +1,6 @@
 // components/Chat.js
 import React, { useState, useEffect, useRef } from "react";
-import socket from "../socket"; // adjust path if needed
+import socket from "../socket";
 
 function Chat({ roomId, defaultName }) {
   const [messages, setMessages] = useState([]);
