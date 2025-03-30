@@ -1,6 +1,6 @@
 // Imports
 import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import socket from "./socket";
 
 // Rooms
@@ -11,12 +11,21 @@ const zones = {
   global: { name: "Global Radio", x: 50, y: 250, w: 550, h: 200, color: "#a0c4ff" },
 };
 
+const BOUNDS = {
+  minX: 0,
+  minY: 0,
+  maxX: 800,
+  maxY: 600,
+};
+
 // Interactive lobby component
 export default function Lobby() {
   const { lobbyId } = useParams();
   const navigate = useNavigate();
   const [users, setUsers] = useState({});
   const [myId, setMyId] = useState(null);
+  const keys = useRef(new Set());
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     if (socket.connected) {
@@ -94,37 +103,53 @@ export default function Lobby() {
     };
   }, [lobbyId]);
 
-  // Handle key events for movement
+  // Smooth movement handler
   useEffect(() => {
-    const handleKey = (e) => {
-      if (!myId) return;
+    const handleKeyDown = (e) => {
+      if (!e.key.startsWith("Arrow")) return;
 
-      if (
-        e.key === "ArrowUp" ||
-        e.key === "ArrowDown" ||
-        e.key === "ArrowLeft" ||
-        e.key === "ArrowRight"
-      ) {
-        // Prevent default scrolling behavior
-        e.preventDefault();
+      e.preventDefault();
+      keys.current.add(e.key);
+
+      if (!intervalRef.current) {
+        intervalRef.current = setInterval(() => {
+          setUsers((prev) => {
+            if (!myId) return prev;
+
+            const me = prev[myId] || { x: 100, y: 100 };
+            let { x, y } = me;
+
+            if (keys.current.has("ArrowUp")) y -= 5;
+            if (keys.current.has("ArrowDown")) y += 5;
+            if (keys.current.has("ArrowLeft")) x -= 5;
+            if (keys.current.has("ArrowRight")) x += 5;
+
+            // Boundaries
+            x = Math.max(BOUNDS.minX, Math.min(x, BOUNDS.maxX - 24));
+            y = Math.max(BOUNDS.minY, Math.min(y, BOUNDS.maxY - 24));
+
+            socket.emit("move", { x, y });
+            return { ...prev, [myId]: { x, y } };
+          });
+        }, 30); // Faster interval = smoother movement
       }
-
-      setUsers((prev) => {
-        const me = prev[myId] || { x: 100, y: 100 };
-        let { x, y } = me;
-
-        if (e.key === "ArrowUp") y -= 10;
-        if (e.key === "ArrowDown") y += 10;
-        if (e.key === "ArrowLeft") x -= 10;
-        if (e.key === "ArrowRight") x += 10;
-
-        socket.emit("move", { x, y });
-        return { ...prev, [myId]: { x, y } };
-      });
     };
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    const handleKeyUp = (e) => {
+      keys.current.delete(e.key);
+      if (keys.current.size === 0 && intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      clearInterval(intervalRef.current);
+    };
   }, [myId]);
 
   return (
@@ -176,7 +201,6 @@ export default function Lobby() {
             fontSize: "14px",
             color: "#222",
             textShadow: "1px 1px white",
-            fontFamily: "'Press Start 2P', monospace",
             textAlign: "center",
             padding: "4px"
           }}
