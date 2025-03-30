@@ -5,70 +5,14 @@ import React, { useState, useRef, useEffect } from "react";
 const isYouTubeUrl = (url) =>
   /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/.test(url);
 
-// Helper: Compute an embed URL with a dynamic start parameter.
-const getYouTubeEmbedUrlWithStart = (url, elapsed) => {
-  const regExp = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/;
-  const match = url.match(regExp);
-  return match
-    ? `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&start=${elapsed}`
-    : "";
-};
-
-// GLOBAL RADIO PANEL using YouTube IFrame API for syncing playback.
-// This panel is now moved to the right side.
+// Positioned at top: 100px to provide space below the Lobby logo.
 function GlobalMusicPanel({ lobbyId }) {
-  const playerRef = useRef(null);
-
-  useEffect(() => {
-    let globalStartTime = localStorage.getItem("globalRadioStartTime");
-    if (!globalStartTime) {
-      globalStartTime = Date.now() / 1000;
-      localStorage.setItem("globalRadioStartTime", globalStartTime);
-    } else {
-      globalStartTime = parseFloat(globalStartTime);
-    }
-
-    function onYouTubeIframeAPIReady() {
-      if (!window.YT || !window.YT.Player) {
-        setTimeout(onYouTubeIframeAPIReady, 500);
-        return;
-      }
-      playerRef.current = new window.YT.Player(`global-player-${lobbyId}`, {
-        videoId: "jfKfPfyJRdk",
-        playerVars: {
-          autoplay: 1,
-          controls: 1,
-          start: Math.floor(Date.now() / 1000 - globalStartTime),
-        },
-        events: {
-          onReady: (event) => {
-            const elapsed = Math.floor(Date.now() / 1000 - globalStartTime);
-            if (typeof event.target.seekTo === "function") {
-              event.target.seekTo(elapsed, true);
-              event.target.playVideo();
-            }
-          },
-        },
-      });
-    }
-
-    if (!window.YT) {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-      window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-    } else {
-      onYouTubeIframeAPIReady();
-    }
-  }, [lobbyId]);
-
   return (
     <div
       style={{
         position: "absolute",
-        top: 50,
-        right: 10, // now on the right side
+        top: 100,
+        right: 10,
         width: "600px",
         height: "338px",
         backgroundColor: "#000",
@@ -76,20 +20,39 @@ function GlobalMusicPanel({ lobbyId }) {
         boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
       }}
     >
+      <iframe
+        width="100%"
+        height="100%"
+        src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?si=umAVeQG3rj0yufQ3&autoplay=1"
+        title="Main Radio"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+      {/* Invisible overlay to disable user interaction */}
       <div
-        id={`global-player-${lobbyId}`}
-        style={{ width: "100%", height: "100%" }}
-      ></div>
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 1000,
+          backgroundColor: "transparent",
+        }}
+        onClick={(e) => e.preventDefault()}
+      />
     </div>
   );
 }
 
-// RoomYTPlayer: Uses the YouTube IFrame API for room videos.
-// It forces playback if paused and synchronizes start time using localStorage.
+// ROOM YOUTUBE PLAYER for room songs.
+// This component creates a YouTube player with controls disabled and an invisible overlay.
 function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   const playerRef = useRef(null);
 
   useEffect(() => {
+    // Get (or create) the start time for this song.
     const startKey = `roomSongStartTime-${roomKey}`;
     let storedTime = localStorage.getItem(startKey);
     if (!storedTime) {
@@ -100,6 +63,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
     }
     const elapsed = Math.floor(Date.now() / 1000 - storedTime);
 
+    // When the player is ready, seek to elapsed time and play.
     function onPlayerReady(event) {
       if (typeof event.target.seekTo === "function") {
         event.target.seekTo(elapsed, true);
@@ -107,8 +71,8 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       }
     }
 
+    // If the player is paused, force it to play; if the video ends, trigger onEnded.
     function onPlayerStateChange(event) {
-      // If paused, force play.
       if (
         event.data === window.YT.PlayerState.PAUSED &&
         playerRef.current &&
@@ -121,6 +85,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       }
     }
 
+    // Create the player once the API is ready.
     function createPlayer() {
       if (!window.YT || !window.YT.Player) {
         setTimeout(createPlayer, 500);
@@ -134,7 +99,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
         })(),
         playerVars: {
           autoplay: 1,
-          controls: 0, // disable user controls to prevent pausing
+          controls: 0, // disable controls so users cannot pause the video
           start: elapsed,
         },
         events: {
@@ -168,17 +133,35 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   }, [videoUrl, roomKey, onEnded]);
 
   return (
-    <div
-      id={`room-player-${roomKey}`}
-      style={{ width: "400px", height: "225px" }}
-    ></div>
+    <div style={{ position: "relative", width: "400px", height: "225px" }}>
+      <div
+        id={`room-player-${roomKey}`}
+        style={{ width: "100%", height: "100%" }}
+      ></div>
+      {/* Invisible overlay to disable interactions */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 1000,
+          backgroundColor: "transparent",
+        }}
+        onClick={(e) => e.preventDefault()}
+      />
+    </div>
   );
 }
 
-// ROOM RADIO PANEL: Handles "Now Playing", queues, and voting for room songs.
-// The panel is moved entirely to the right side.
-function RoomMusicPanel({ zone, lobbyId }) {
-  const roomKey = `roomQueue-${zone}`;
+// ROOM MUSIC PANEL: Handles "Now Playing", queues, and voting for room songs.
+// The room key is made unique by including the lobbyId and zone.
+// The vote state is persisted per user via myId.
+function RoomMusicPanel({ zone, lobbyId, myId }) {
+  const roomKey = `roomQueue-${lobbyId}-${zone}`;
+  // Use a unique key for vote persistence; if myId is missing, fall back to "anonymous"
+  const votedKey = `votedSongs-${roomKey}-${myId || "anonymous"}`;
   const [currentSong, setCurrentSong] = useState(null);
   const [mainQueue, setMainQueue] = useState([]);
   const [pendingQueue, setPendingQueue] = useState([]);
@@ -187,7 +170,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
   const [newSongTitle, setNewSongTitle] = useState("");
   const audioRef = useRef(null);
 
-  // Load state from localStorage on mount.
+  // Load queue state from localStorage.
   useEffect(() => {
     const stored = localStorage.getItem(roomKey);
     if (stored) {
@@ -198,13 +181,13 @@ function RoomMusicPanel({ zone, lobbyId }) {
     }
   }, [roomKey]);
 
-  // Save state to localStorage whenever queues change.
+  // Save queue state to localStorage whenever it changes.
   useEffect(() => {
     const state = { currentSong, mainQueue, pendingQueue };
     localStorage.setItem(roomKey, JSON.stringify(state));
   }, [currentSong, mainQueue, pendingQueue, roomKey]);
 
-  // Always sync state from localStorage.
+  // Sync state across tabs.
   useEffect(() => {
     const handler = (e) => {
       if (e.key === roomKey && e.newValue) {
@@ -217,6 +200,19 @@ function RoomMusicPanel({ zone, lobbyId }) {
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, [roomKey]);
+
+  // Load the user's vote record from localStorage.
+  useEffect(() => {
+    const storedVotes = localStorage.getItem(votedKey);
+    if (storedVotes) {
+      setVotedSongs(JSON.parse(storedVotes));
+    }
+  }, [votedKey]);
+
+  // Persist the vote record to localStorage.
+  useEffect(() => {
+    localStorage.setItem(votedKey, JSON.stringify(votedSongs));
+  }, [votedSongs, votedKey]);
 
   const handleAddSong = () => {
     if (!newSongUrl || !newSongTitle) return;
@@ -231,6 +227,8 @@ function RoomMusicPanel({ zone, lobbyId }) {
     setNewSongTitle("");
   };
 
+  // Vote Yes: Increase vote count by 1.
+  // If score reaches +3, move the song from pending to main queue.
   const handleVoteYes = (songId) => {
     if (votedSongs[songId]) return;
     setVotedSongs((prev) => ({ ...prev, [songId]: true }));
@@ -251,10 +249,28 @@ function RoomMusicPanel({ zone, lobbyId }) {
     );
   };
 
+  // Vote No: Decrease vote count by 1.
+  // If score reaches -3, remove the song from pending.
   const handleVoteNo = (songId) => {
-    // Optional "No" vote logic.
+    if (votedSongs[songId]) return;
+    setVotedSongs((prev) => ({ ...prev, [songId]: true }));
+    setPendingQueue((prev) =>
+      prev
+        .map((song) => {
+          if (song.id === songId) {
+            const updatedVotes = song.votes - 1;
+            if (updatedVotes <= -3) {
+              return null;
+            }
+            return { ...song, votes: updatedVotes };
+          }
+          return song;
+        })
+        .filter((song) => song !== null)
+    );
   };
 
+  // When the current song ends, move to the next song.
   const handleSongEnd = () => {
     if (mainQueue.length > 0) {
       setCurrentSong(mainQueue[0]);
@@ -266,6 +282,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
     }
   };
 
+  // If no song is playing and there is a song in the main queue, auto-load it.
   useEffect(() => {
     if (!currentSong && mainQueue.length > 0) {
       setCurrentSong(mainQueue[0]);
@@ -273,7 +290,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
     }
   }, [mainQueue, currentSong]);
 
-  // For non-YouTube songs, use an audio element.
+  // For non-YouTube songs, load and play using an audio element.
   useEffect(() => {
     if (currentSong && !isYouTubeUrl(currentSong.url) && audioRef.current) {
       audioRef.current.src = currentSong.url;
@@ -283,7 +300,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
     }
   }, [currentSong]);
 
-  // For YouTube songs, store a start time if not already set.
+  // For YouTube songs, set a start time if not already set.
   useEffect(() => {
     if (currentSong && isYouTubeUrl(currentSong.url)) {
       const startKey = `roomSongStartTime-${roomKey}`;
@@ -297,7 +314,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
     <div
       style={{
         position: "absolute",
-        top: 50,
+        top: 100, // moved down for spacing
         right: 10,
         width: "420px",
         backgroundColor: "#fff",
@@ -307,20 +324,15 @@ function RoomMusicPanel({ zone, lobbyId }) {
         overflowY: "auto",
       }}
     >
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>
-        Now Playing
-      </h3>
+      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Now Playing</h3>
       {currentSong ? (
         <div style={{ marginBottom: "10px" }}>
           <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
             {currentSong.title}
           </p>
           {isYouTubeUrl(currentSong.url) ? (
-            <RoomYTPlayer
-              videoUrl={currentSong.url}
-              roomKey={roomKey}
-              onEnded={handleSongEnd}
-            />
+            // Force remount of the player when the song changes by using the song's id as key.
+            <RoomYTPlayer key={currentSong.id} videoUrl={currentSong.url} roomKey={roomKey} onEnded={handleSongEnd} />
           ) : (
             <audio
               ref={audioRef}
@@ -330,7 +342,6 @@ function RoomMusicPanel({ zone, lobbyId }) {
               style={{ width: "300px", marginTop: "5px" }}
             />
           )}
-          {/* For non-YouTube songs, show a thumbnail */}
           {!isYouTubeUrl(currentSong.url) &&
             (() => {
               const regExp = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/;
@@ -345,18 +356,12 @@ function RoomMusicPanel({ zone, lobbyId }) {
             })()}
         </div>
       ) : (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
-          No song is playing.
-        </p>
+        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>No song is playing.</p>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>
-        Main Queue
-      </h3>
+      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Main Queue</h3>
       {mainQueue.length === 0 ? (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
-          The main queue is empty.
-        </p>
+        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>The main queue is empty.</p>
       ) : (
         <ul style={{ paddingLeft: "20px", fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
           {mainQueue.map((song) => (
@@ -365,13 +370,9 @@ function RoomMusicPanel({ zone, lobbyId }) {
         </ul>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>
-        Pending Queue
-      </h3>
+      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Pending Queue</h3>
       {pendingQueue.length === 0 ? (
-        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
-          No pending songs.
-        </p>
+        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>No pending songs.</p>
       ) : (
         <ul style={{ paddingLeft: "20px", fontFamily: "'Press Start 2P', monospace", fontSize: "10px" }}>
           {pendingQueue.map((song) => (
@@ -405,9 +406,7 @@ function RoomMusicPanel({ zone, lobbyId }) {
         </ul>
       )}
 
-      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>
-        Add a Song
-      </h3>
+      <h3 style={{ fontFamily: "'Press Start 2P', monospace", fontSize: "12px" }}>Add a Song</h3>
       <div>
         <input
           type="text"
@@ -445,11 +444,12 @@ function RoomMusicPanel({ zone, lobbyId }) {
   );
 }
 
-// Parent component: Choose which panel to render based on zone.
-export default function MusicPanel({ zone, lobbyId }) {
+// Parent component: Choose panel based on zone.
+// For non-global zones, ensure you pass the current user's ID (myId) so that vote state is stored per user.
+export default function MusicPanel({ zone, lobbyId, myId }) {
   return zone === "global" ? (
     <GlobalMusicPanel lobbyId={lobbyId} />
   ) : (
-    <RoomMusicPanel zone={zone} lobbyId={lobbyId} />
+    <RoomMusicPanel zone={zone} lobbyId={lobbyId} myId={myId} />
   );
 }

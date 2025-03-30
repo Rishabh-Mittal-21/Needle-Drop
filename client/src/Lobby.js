@@ -28,6 +28,22 @@ export default function Lobby() {
   const [myId, setMyId] = useState(null);
   const [currentZone, setCurrentZone] = useState(null);
 
+  // Define the reset function so you can clear lobby state.
+  const resetLobby = () => {
+    // Clear the global radio start time.
+    localStorage.removeItem("globalRadioStartTime");
+    // Clear room queues and vote records for each zone.
+    const zoneNames = ["room1", "room2", "room3", "global"];
+    zoneNames.forEach((zone) => {
+      const key = zone === "global" ? `roomQueue-${lobbyId}` : `roomQueue-${lobbyId}-${zone}`;
+      localStorage.removeItem(key);
+      const voteKey = `votedSongs-${key}-${myId || "anonymous"}`;
+      localStorage.removeItem(voteKey);
+    });
+    // Force a page reload.
+    window.location.reload();
+  };
+
   useEffect(() => {
     if (socket.connected) {
       socket.disconnect();
@@ -142,8 +158,8 @@ export default function Lobby() {
   return (
     <div
       style={{
-        width: "100vw",
-        height: "100vh",
+        width: "98vw",
+        height: "98vh",
         position: "relative",
         overflow: "hidden",
         backgroundColor: "#acd5ce",
@@ -169,7 +185,7 @@ export default function Lobby() {
       >
         ← Back
       </button>
-      {/* Enlarged bubbly Lobby logo in the top-right; shifted slightly left */}
+      {/* Lobby logo in top-right */}
       <div
         style={{
           position: "absolute",
@@ -241,8 +257,27 @@ export default function Lobby() {
       })}
 
       {["room1", "room2", "room3", "global"].includes(currentZone) && (
-        <MusicPanel zone={currentZone} lobbyId={lobbyId} key={currentZone} />
+        <MusicPanel zone={currentZone} lobbyId={lobbyId} myId={myId} key={currentZone} />
       )}
+
+      {/* Tiny Reset Button in the bottom-right */}
+      <button
+        onClick={resetLobby}
+        style={{
+          position: "absolute",
+          bottom: "10px",
+          right: "10px",
+          fontSize: "10px",
+          padding: "2px 4px",
+          backgroundColor: "#e0e0e0",
+          border: "1px solid #888",
+          borderRadius: "3px",
+          zIndex: 1000,
+          cursor: "pointer",
+        }}
+      >
+        Reset
+      </button>
     </div>
   );
 }
