@@ -1,11 +1,20 @@
 // components/MusicPanel.js
 import React, { useState, useRef, useEffect } from "react";
+import YouTubeSearch from "./YouTubeSearch";
 
 // Helper: Determine if a URL is a YouTube link.
 const isYouTubeUrl = (url) =>
   /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/.test(url);
 
-// Positioned at top: 120px to provide space below the Lobby logo.
+const formatTime = (time) => {
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+
+/* ----------------- Global Music Panel ----------------- */
 function GlobalMusicPanel({ lobbyId }) {
   return (
     <div
@@ -15,9 +24,10 @@ function GlobalMusicPanel({ lobbyId }) {
         right: 10,
         width: "800px",
         height: "450px",
-        backgroundColor: "#000",
-        border: "2px solid #444",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+        backgroundColor: "#fff",
+        borderRadius: "10px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        overflow: "hidden",
       }}
     >
       <iframe
@@ -29,7 +39,6 @@ function GlobalMusicPanel({ lobbyId }) {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
       />
-      {/* Invisible overlay to disable user interaction */}
       <div
         style={{
           position: "absolute",
@@ -46,9 +55,11 @@ function GlobalMusicPanel({ lobbyId }) {
   );
 }
 
-// ROOM YOUTUBE PLAYER for room songs.
+/* ----------------- Room YouTube Player ----------------- */
 function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   const playerRef = useRef(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     const startKey = `roomSongStartTime-${roomKey}`;
@@ -66,6 +77,8 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
         event.target.seekTo(elapsed, true);
         event.target.playVideo();
       }
+      const dur = event.target.getDuration();
+      setDuration(dur);
     }
 
     function onPlayerStateChange(event) {
@@ -94,7 +107,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
         })(),
         playerVars: {
           autoplay: 1,
-          controls: 0, // disable controls so users cannot pause the video
+          controls: 0,
           start: elapsed,
         },
         events: {
@@ -114,17 +127,13 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
       createPlayer();
     }
 
-    // Prevent spacebar from pausing.
-    const handleKeyDown = (e) => {
-      if (e.code === "Space") {
-        e.preventDefault();
-        if (playerRef.current && typeof playerRef.current.playVideo === "function") {
-          playerRef.current.playVideo();
-        }
+    const interval = setInterval(() => {
+      if (playerRef.current && playerRef.current.getCurrentTime) {
+        setCurrentTime(playerRef.current.getCurrentTime());
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [videoUrl, roomKey, onEnded]);
 
   return (
@@ -133,7 +142,29 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
         id={`room-player-${roomKey}`}
         style={{ width: "100%", height: "100%" }}
       ></div>
-      {/* Invisible overlay to disable interactions */}
+      {/* Progress Bar */}
+      <div style={{ marginTop: "5px" }}>
+        <div
+          style={{
+            width: "100%",
+            height: "6px",
+            backgroundColor: "#eee",
+            borderRadius: "3px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: duration ? `${(currentTime / duration) * 100}%` : "0%",
+              height: "100%",
+              backgroundColor: "#FF6BBA",
+            }}
+          ></div>
+        </div>
+        <div style={{ fontSize: "12px", textAlign: "right", color: "#666" }}>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </div>
+      </div>
       <div
         style={{
           position: "absolute",
@@ -150,7 +181,7 @@ function RoomYTPlayer({ videoUrl, roomKey, onEnded }) {
   );
 }
 
-// ROOM MUSIC PANEL: Handles "Now Playing", queues, and voting for room songs.
+/* ----------------- Room Music Panel ----------------- */
 function RoomMusicPanel({ zone, lobbyId, myId }) {
   const roomKey = `roomQueue-${lobbyId}-${zone}`;
   const votedKey = `votedSongs-${roomKey}-${myId || "anonymous"}`;
@@ -160,9 +191,19 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
   const [votedSongs, setVotedSongs] = useState({});
   const [newSongUrl, setNewSongUrl] = useState("");
   const [newSongTitle, setNewSongTitle] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [panelHeight, setPanelHeight] = useState("90vh");
+  const [audioProgress, setAudioProgress] = useState({ current: 0, duration: 0 });
   const audioRef = useRef(null);
 
-  // Load queue state from localStorage.
+  useEffect(() => {
+    if (currentSong || mainQueue.length > 0 || pendingQueue.length > 0) {
+      setPanelHeight("80vh");
+    } else {
+      setPanelHeight("90vh");
+    }
+  }, [currentSong, mainQueue, pendingQueue]);
+
   useEffect(() => {
     const stored = localStorage.getItem(roomKey);
     if (stored) {
@@ -173,13 +214,11 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [roomKey]);
 
-  // Save queue state to localStorage whenever it changes.
   useEffect(() => {
     const state = { currentSong, mainQueue, pendingQueue };
     localStorage.setItem(roomKey, JSON.stringify(state));
   }, [currentSong, mainQueue, pendingQueue, roomKey]);
 
-  // Sync state across tabs.
   useEffect(() => {
     const handler = (e) => {
       if (e.key === roomKey && e.newValue) {
@@ -193,7 +232,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     return () => window.removeEventListener("storage", handler);
   }, [roomKey]);
 
-  // Load the user's vote record from localStorage.
   useEffect(() => {
     const storedVotes = localStorage.getItem(votedKey);
     if (storedVotes) {
@@ -201,7 +239,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [votedKey]);
 
-  // Persist the vote record to localStorage.
   useEffect(() => {
     localStorage.setItem(votedKey, JSON.stringify(votedSongs));
   }, [votedSongs, votedKey]);
@@ -219,7 +256,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     setNewSongTitle("");
   };
 
-  // Vote Yes: Increase vote count by 1.
   const handleVoteYes = (songId) => {
     if (votedSongs[songId]) return;
     setVotedSongs((prev) => ({ ...prev, [songId]: true }));
@@ -240,7 +276,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     );
   };
 
-  // Vote No: Decrease vote count by 1.
   const handleVoteNo = (songId) => {
     if (votedSongs[songId]) return;
     setVotedSongs((prev) => ({ ...prev, [songId]: true }));
@@ -260,7 +295,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     );
   };
 
-  // When the current song ends, move to the next song.
   const handleSongEnd = () => {
     if (mainQueue.length > 0) {
       setCurrentSong(mainQueue[0]);
@@ -272,7 +306,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   };
 
-  // Auto-load the next song if none is playing.
   useEffect(() => {
     if (!currentSong && mainQueue.length > 0) {
       setCurrentSong(mainQueue[0]);
@@ -280,7 +313,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [mainQueue, currentSong]);
 
-  // For non-YouTube songs.
   useEffect(() => {
     if (currentSong && !isYouTubeUrl(currentSong.url) && audioRef.current) {
       audioRef.current.src = currentSong.url;
@@ -290,7 +322,6 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [currentSong]);
 
-  // For YouTube songs, set a start time if not already set.
   useEffect(() => {
     if (currentSong && isYouTubeUrl(currentSong.url)) {
       const startKey = `roomSongStartTime-${roomKey}`;
@@ -300,6 +331,13 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
     }
   }, [currentSong, roomKey]);
 
+  const handleVideoSelect = (video) => {
+    const url = `https://www.youtube.com/watch?v=${video.id.videoId}`;
+    setNewSongUrl(url);
+    setNewSongTitle(video.snippet.title);
+    setShowSearch(false);
+  };
+
   return (
     <div
       style={{
@@ -308,29 +346,29 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
         right: 10,
         width: "600px",
         backgroundColor: "#fff",
-        padding: "15px",
-        borderRadius: "8px",
-        maxHeight: "90vh",
+        padding: "20px",
+        borderRadius: "15px",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+        maxHeight: panelHeight,
         overflowY: "auto",
+        fontFamily: "'Poppins', sans-serif",
+        color: "#333",
       }}
     >
+      {/* Now Playing */}
       <h3
         style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: "16px",
-          margin: "10px 0",
+          fontSize: "20px",
+          fontWeight: 600,
+          marginBottom: "10px",
+          color: "#FF6BBA",
         }}
       >
         Now Playing
       </h3>
       {currentSong ? (
-        <div style={{ marginBottom: "15px" }}>
-          <p
-            style={{
-              fontFamily: "'Press Start 2P', monospace",
-              fontSize: "14px",
-            }}
-          >
+        <div style={{ marginBottom: "20px" }}>
+          <p style={{ fontSize: "16px", fontWeight: 500 }}>
             {currentSong.title}
           </p>
           {isYouTubeUrl(currentSong.url) ? (
@@ -341,123 +379,135 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
               onEnded={handleSongEnd}
             />
           ) : (
-            <audio
-              ref={audioRef}
-              onEnded={handleSongEnd}
-              controls
-              autoPlay
-              style={{ width: "100%", marginTop: "5px" }}
-            />
+            <>
+              <audio
+                ref={audioRef}
+                onEnded={handleSongEnd}
+                controls
+                autoPlay
+                onTimeUpdate={(e) => {
+                  const current = e.target.currentTime;
+                  const dur = e.target.duration;
+                  setAudioProgress({ current, duration: dur });
+                }}
+                style={{ width: "100%", marginTop: "10px" }}
+              />
+              {audioProgress.duration > 0 && (
+                <div style={{ marginTop: "5px" }}>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "6px",
+                      backgroundColor: "#eee",
+                      borderRadius: "3px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${(audioProgress.current / audioProgress.duration) * 100}%`,
+                        height: "100%",
+                        backgroundColor: "#FF6BBA",
+                      }}
+                    ></div>
+                  </div>
+                  <div style={{ fontSize: "12px", textAlign: "right", color: "#666" }}>
+                    {formatTime(audioProgress.current)} / {formatTime(audioProgress.duration)}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-          {!isYouTubeUrl(currentSong.url) &&
-            (() => {
-              const regExp = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&]+)/;
-              const match = currentSong.url.match(regExp);
-              return match ? (
-                <img
-                  src={`https://img.youtube.com/vi/${match[1]}/0.jpg`}
-                  alt="thumbnail"
-                  style={{
-                    width: "100%",
-                    height: "auto",
-                    marginTop: "10px",
-                  }}
-                />
-              ) : null;
-            })()}
         </div>
       ) : (
-        <p
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: "14px",
-          }}
-        >
-          No song is playing.
-        </p>
+        <p style={{ fontSize: "14px" }}>No song is playing.</p>
       )}
 
+      {/* Main Queue */}
       <h3
         style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: "16px",
-          margin: "10px 0",
+          fontSize: "20px",
+          fontWeight: 600,
+          marginBottom: "10px",
+          color: "#FF6BBA",
         }}
       >
         Main Queue
       </h3>
       {mainQueue.length === 0 ? (
-        <p
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: "14px",
-          }}
-        >
-          The main queue is empty.
-        </p>
+        <p style={{ fontSize: "14px" }}>The main queue is empty.</p>
       ) : (
-        <ul
-          style={{
-            paddingLeft: "20px",
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: "14px",
-          }}
-        >
+        <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
           {mainQueue.map((song) => (
-            <li key={song.id}>{song.title}</li>
+            <li key={song.id} style={{ marginBottom: "5px", fontSize: "14px" }}>
+              {song.title}
+            </li>
           ))}
         </ul>
       )}
 
+      {/* Pending Queue */}
       <h3
         style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: "16px",
-          margin: "10px 0",
+          fontSize: "20px",
+          fontWeight: 600,
+          marginBottom: "10px",
+          color: "#FF6BBA",
         }}
       >
         Pending Queue
       </h3>
       {pendingQueue.length === 0 ? (
-        <p
-          style={{
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: "14px",
-          }}
-        >
-          No pending songs.
-        </p>
+        <p style={{ fontSize: "14px" }}>No pending songs.</p>
       ) : (
-        <ul
-          style={{
-            paddingLeft: "20px",
-            fontFamily: "'Press Start 2P', monospace",
-            fontSize: "14px",
-          }}
-        >
+        <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
           {pendingQueue.map((song) => (
-            <li key={song.id} style={{ marginBottom: "8px" }}>
+            <li key={song.id} style={{ marginBottom: "8px", fontSize: "14px" }}>
               <span>
-                {song.title} ({song.votes} votes)
+                {song.title} (<strong>{song.votes}</strong> votes)
               </span>
               <button
                 onClick={() => handleVoteYes(song.id)}
                 disabled={votedSongs[song.id]}
                 style={{
-                  marginLeft: "5px",
-                  fontFamily: "'Press Start 2P', monospace",
+                  marginLeft: "10px",
+                  backgroundColor: "#FFA4D3",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
                   fontSize: "14px",
+                  cursor: "pointer",
+                  fontWeight: 500,
                 }}
+                onMouseEnter={(e) =>
+                  (e.target.style.backgroundColor = "#ff8cc7")
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.backgroundColor = "#FFA4D3")
+                }
               >
                 Yes
               </button>
               <button
                 onClick={() => handleVoteNo(song.id)}
                 style={{
-                  marginLeft: "5px",
-                  fontFamily: "'Press Start 2P', monospace",
+                  marginLeft: "10px",
+                  backgroundColor: "#FFCCDD",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
                   fontSize: "14px",
+                  cursor: "pointer",
+                  fontWeight: 500,
                 }}
+                onMouseEnter={(e) =>
+                  (e.target.style.backgroundColor = "#ffb3cf")
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.backgroundColor = "#FFCCDD")
+                }
               >
                 No
               </button>
@@ -466,26 +516,44 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
         </ul>
       )}
 
+      {/* Add a Song Section */}
       <h3
         style={{
-          fontFamily: "'Press Start 2P', monospace",
-          fontSize: "16px",
-          margin: "10px 0",
+          fontSize: "20px",
+          fontWeight: 600,
+          marginBottom: "10px",
+          color: "#FF6BBA",
         }}
       >
         Add a Song
       </h3>
-      <div>
+      {/* YouTube Search directly under Add a Song */}
+      <div
+        style={{
+          backgroundColor: "#FDF6F0",
+          border: "2px solid #FFD1E6",
+          borderRadius: "10px",
+          padding: "15px",
+          marginBottom: "20px",
+          textAlign: "center",
+        }}
+      >
+        <YouTubeSearch onVideoSelect={handleVideoSelect} />
+      </div>
+      {/* Then below, the manual input fields */}
+      <div style={{ marginBottom: "10px", display: "flex", flexWrap: "wrap", gap: "10px" }}>
         <input
           type="text"
           placeholder="Song Title"
           value={newSongTitle}
           onChange={(e) => setNewSongTitle(e.target.value)}
           style={{
-            fontFamily: "'Press Start 2P', monospace",
             fontSize: "14px",
-            marginRight: "10px",
-            padding: "5px",
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: "1px solid #ddd",
+            fontFamily: "'Poppins', sans-serif",
+            flex: "1 1 40%",
           }}
         />
         <input
@@ -494,19 +562,30 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
           value={newSongUrl}
           onChange={(e) => setNewSongUrl(e.target.value)}
           style={{
-            fontFamily: "'Press Start 2P', monospace",
             fontSize: "14px",
-            marginRight: "10px",
-            padding: "5px",
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: "1px solid #ddd",
+            fontFamily: "'Poppins', sans-serif",
+            flex: "1 1 40%",
           }}
         />
         <button
           onClick={handleAddSong}
           style={{
-            fontFamily: "'Press Start 2P', monospace",
+            backgroundColor: "#28a745",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            padding: "6px 12px",
             fontSize: "14px",
-            padding: "5px 10px",
+            fontWeight: 500,
+            cursor: "pointer",
+            fontFamily: "'Poppins', sans-serif",
+            flex: "1 1 15%",
           }}
+          onMouseEnter={(e) => (e.target.style.backgroundColor = "#218838")}
+          onMouseLeave={(e) => (e.target.style.backgroundColor = "#28a745")}
         >
           Add Song
         </button>
@@ -515,7 +594,7 @@ function RoomMusicPanel({ zone, lobbyId, myId }) {
   );
 }
 
-// Parent component: Choose panel based on zone.
+/* ----------------- Parent Music Panel ----------------- */
 export default function MusicPanel({ zone, lobbyId, myId }) {
   return zone === "global" ? (
     <GlobalMusicPanel lobbyId={lobbyId} />

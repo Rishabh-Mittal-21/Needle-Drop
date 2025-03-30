@@ -165,7 +165,7 @@ export default function Lobby() {
         border: `${BORDER_WIDTH}px solid #444`,
         fontFamily: "'Press Start 2P', monospace",
       }}
-      // Back button
+    // Back button
     >
       <button
         onClick={() => navigate("/")}
@@ -215,22 +215,22 @@ export default function Lobby() {
             top: zone.y,
             width: zone.w,
             height: zone.h,
-            backgroundColor: zone.color,
-            border: "2px dashed #444",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+            background: zone.color,
+            borderRadius: "15px",
+            border: "2px solid rgba(0,0,0,0.1)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontWeight: "bold",
-            fontSize: "40px",
-            color: "#222",
-            textShadow: "1px 1px white",
+            fontWeight: 600,
+            fontSize: "32px",
+            color: "#333",
             textAlign: "center",
-            padding: "4px",
           }}
         >
           {zone.name}
         </div>
+
       ))}
 
       {Object.entries(users).map(([id, user]) => {
@@ -268,13 +268,18 @@ export default function Lobby() {
           bottom: "10px",
           right: "10px",
           fontSize: "10px",
-          padding: "2px 4px",
-          backgroundColor: "#e0e0e0",
-          border: "1px solid #888",
-          borderRadius: "3px",
+          padding: "4px 8px",
+          backgroundColor: "#FF87B2",
+          border: "none",
+          borderRadius: "6px",
+          color: "#fff",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
           zIndex: 1000,
           cursor: "pointer",
+          fontFamily: "'Poppins', sans-serif",
         }}
+        onMouseEnter={(e) => (e.target.style.backgroundColor = "#ff6ba1")}
+        onMouseLeave={(e) => (e.target.style.backgroundColor = "#FF87B2")}
       >
         Reset
       </button>
